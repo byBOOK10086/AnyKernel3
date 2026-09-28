@@ -411,6 +411,7 @@ jobs:
           case "${{ inputs.kernelsu_variant }}" in
             "SukiSU")    KSU_NAME="SukiSU" ;;
             "ReSukiSU")  KSU_NAME="ReSukiSU" ;;
+            "XECKernelPro") KSU_NAME="XECKernelPro" ;;
           esac
           echo "KSU_NAME=$KSU_NAME" >> $GITHUB_ENV
 
@@ -480,6 +481,7 @@ jobs:
               fi
               ;;
             "ReSukiSU") BRANCH="main" ;;
+            "XECKernelPro") BRANCH="main" ;;
             *) echo "错误: 未知变体" >&2; exit 1 ;;
           esac
           echo "KSU_BRANCH=$BRANCH" >> $GITHUB_ENV
@@ -492,6 +494,7 @@ jobs:
           case "${{ inputs.kernelsu_variant }}" in
             "SukiSU") REPO_URL="https://github.com/SukiSU-Ultra/SukiSU-Ultra.git"; REPO_URL2="SukiSU-Ultra/SukiSU-Ultra" ;;
             "ReSukiSU") REPO_URL="https://github.com/ReSukiSU/ReSukiSU.git"; REPO_URL2="ReSukiSU/ReSukiSU" ;;
+            "XECKernelPro") REPO_URL="https://github.com/byBOOK10086/xecpro.git"; REPO_URL2="byBOOK10086/xecpro" ;;
           esac
 
           if [ "${{ inputs.kernelsu_variant }}" = "SukiSU" ] && [ -f "config/config" ]; then
