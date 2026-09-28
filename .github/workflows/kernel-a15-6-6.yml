@@ -14,6 +14,7 @@ on:
         options:
           - SukiSU
           - ReSukiSU
+          - XECKernelPro
         default: ReSukiSU
       version:
         description: "自定义版本名 (可选)"

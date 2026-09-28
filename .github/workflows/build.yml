@@ -437,6 +437,11 @@ jobs:
                 BRANCH="-s builtin"
               fi
               ;;
+            "XECKernelPro")
+              # XEC 仓库的 kernel/setup.sh 沿用官方 KernelSU 的脚本形态（不识别 -s），
+              # 直接传分支名，脚本内部会 checkout 该分支。
+              BRANCH="main"
+              ;;
             *)
               echo "未知变体: $variant_input" >&2
               exit 1
@@ -472,6 +477,12 @@ jobs:
               echo "添加 ReSukiSU..."
               curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash $BRANCH
               bash "$GITHUB_WORKSPACE/scripts/ksu_post_setup.sh" KernelSU resukisu
+              ;;
+            "XECKernelPro")
+              echo "添加 ${{ inputs.ksu_variant }}..."
+              curl -LSs "https://raw.githubusercontent.com/byBOOK10086/xecpro/main/kernel/setup.sh" | bash $BRANCH
+              # XEC 源码已自带品牌标识（kernel/Kbuild 的 KSU_VERSION_FULL/KSU_MANAGER_PACKAGE），
+              # 无需再做 REPO_NAME 品牌改写。
               ;;
             *)
               echo "未知变体: ${{ inputs.ksu_variant }}" >&2
@@ -1181,7 +1192,7 @@ jobs:
           CONFIG_TMPFS_POSIX_ACL=y
           EOF
 
-          if [ "${{ inputs.ksu_variant }}" == "SukiSU" ] || [ "${{ inputs.ksu_variant }}" == "ReSukiSU" ]; then
+          if [ "${{ inputs.ksu_variant }}" == "SukiSU" ] || [ "${{ inputs.ksu_variant }}" == "ReSukiSU" ] || [ "${{ inputs.ksu_variant }}" == "XECKernelPro" ]; then
             if [[ "${{ inputs.use_kpm }}" == enabled* ]] || [[ "${{ inputs.use_kpm }}" == patched* ]]; then
               if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' common KernelSU 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$DEFCONFIG"

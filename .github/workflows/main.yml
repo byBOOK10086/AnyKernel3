@@ -39,6 +39,7 @@ on:
         options:
           - SukiSU
           - ReSukiSU
+          - XECKernelPro
         default: ReSukiSU
 
       # ==================== 可选配置 ====================
