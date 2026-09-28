@@ -438,9 +438,10 @@ jobs:
               fi
               ;;
             "XECKernelPro")
-              # XEC 仓库的 kernel/setup.sh 沿用官方 KernelSU 的脚本形态（不识别 -s），
-              # 直接传分支名，脚本内部会 checkout 该分支。
-              BRANCH="main"
+              # 与其他变体保持一致：-s 让 bash 从 stdin 读脚本，main 作为 $1 传给 setup.sh，
+              # 由脚本内部 git checkout main。
+              # 注意不能写成 BRANCH="main"，那样会变成 bash main，bash 会把 main 当脚本文件。
+              BRANCH="-s main"
               ;;
             *)
               echo "未知变体: $variant_input" >&2
