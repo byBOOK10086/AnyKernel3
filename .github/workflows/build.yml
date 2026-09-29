@@ -1235,7 +1235,20 @@ jobs:
 
       - name: 添加 SUSFS 配置
         if: inputs.enable_susfs
+        working-directory: ${{ env.KERNEL_ROOT }}
         run: |
+          # 部分变体（如 XECKernelPro）的 KernelSU 源码未内置 SUSFS，Kconfig 中不存在
+          # CONFIG_KSU_SUSFS_* 定义；若仍写入 defconfig，bazel 的 trim 校验会因符号
+          # 未生效（actual ''）直接判定构建失败，故先探测再写入。
+          if ! grep -RqsE '^[[:space:]]*config[[:space:]]+KSU_SUSFS([[:space:]]|$)' common KernelSU 2>/dev/null; then
+            echo "::warning title=SUSFS 已跳过::当前 KernelSU 代码未声明 CONFIG_KSU_SUSFS，已跳过 SUSFS 配置"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⏭️ **SUSFS** 已自动跳过：当前 KernelSU 代码未声明 \`CONFIG_KSU_SUSFS\`（构建未中断）" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "SUSFS_SKIPPED=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
           cat >> "$DEFCONFIG" << 'EOF'
           CONFIG_KSU_SUSFS=y
           CONFIG_KSU_SUSFS_SUS_PATH=y
