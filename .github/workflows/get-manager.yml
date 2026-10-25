@@ -50,7 +50,7 @@ jobs:
             git clone https://github.com/ReSukiSU/ReSukiSU.git KernelSU
           elif [ "${{ inputs.kernelsu_variant }}" == "XECKernelPro" ]; then
             echo "This is the XECKernelPro variant"
-            git clone https://github.com/byBOOK10086/xecpro.git KernelSU
+            git clone https://github.com/byBOOK10086/XECKernelPro.git KernelSU
           else
             echo "Unknown variant"
             exit 1
@@ -64,8 +64,9 @@ jobs:
           if [ "${{ inputs.kernelsu_variant }}" == "SukiSU" ]; then
             KSU_VERSION=$((40000 + KSU_GIT_VERSION - 2815))
           elif [ "${{ inputs.kernelsu_variant }}" == "XECKernelPro" ]; then
-            # 与内核侧 kernel/Kbuild 的算法保持一致：30000 + git commit 数
-            KSU_VERSION=$((30000 + KSU_GIT_VERSION))
+            # 与内核侧 kernel/Kbuild 的算法保持一致：31000 + git commit 数
+            # （基座 30000→31000 是迁仓时改的，与 manager versionCode 同基座）
+            KSU_VERSION=$((31000 + KSU_GIT_VERSION))
           else
             KSU_VERSION=$((30700 + KSU_GIT_VERSION))
           fi
@@ -108,13 +109,13 @@ jobs:
           # XEC 变体：管理器直接取本仓库 Release 产物（tag 形如 v30091-<sha>），
           # 按 tag 解析出的版本号挑选不高于内核 KSU 版本的最新一个。
           if [ "${{ inputs.kernelsu_variant }}" == "XECKernelPro" ]; then
-            echo "从 byBOOK10086/xecpro Release 获取 XEC 管理器..."
+            echo "从 byBOOK10086/XECKernelPro Release 获取 XEC 管理器..."
             mkdir -p manager-artifacts/xec
             RELEASES=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/byBOOK10086/xecpro/releases?per_page=30")
+              "https://api.github.com/repos/byBOOK10086/XECKernelPro/releases?per_page=30")
             REL_COUNT=$(printf '%s' "$RELEASES" | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo 0)
             if ! [[ "$REL_COUNT" =~ ^[0-9]+$ ]] || [ "$REL_COUNT" -eq 0 ]; then
-              echo "未获取到 xecpro 的 Release 列表。"
+              echo "未获取到 XECKernelPro 的 Release 列表。"
               exit 1
             fi
 
@@ -161,7 +162,7 @@ jobs:
             case "${{ inputs.kernelsu_variant }}" in
               "SukiSU") echo $((40000 + git_version - 2815)) ;;
               "ReSukiSU") echo $((30700 + git_version)) ;;
-              "XECKernelPro") echo $((30000 + git_version)) ;;
+              "XECKernelPro") echo $((31000 + git_version)) ;;
               *) return 1 ;;
             esac
           }
