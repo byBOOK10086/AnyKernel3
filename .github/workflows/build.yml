@@ -1314,11 +1314,14 @@ jobs:
       - name: 配置内核名称
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
-          # 内核树根：传统 build.sh 树的内核源码在 common/，kleaf 树在当前目录
+          # 内核树根：两种构建（build.sh 与 kleaf/bazel）的内核源码都在 common/，
+          # 差别只在构建仓库的位置（build/）。旧代码把 kleaf 的 KROOT 设成 "."，
+          # setlocalversion 就被写进了不存在的 ./scripts/（旧 sed 有 || true 掩盖，
+          # stub 的重定向没有，一炸整片 6.x job）。
+          KROOT="./common"
           if [ -f "build/build.sh" ]; then
-            KROOT="./common"
+            sed -i 's/-dirty//' ./common/scripts/setlocalversion
           else
-            KROOT="."
             sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' ./common/BUILD.bazel
             sed -i '/kmi_symbol_list_strict_mode/d' ./common/BUILD.bazel
             rm -rf ./common/android/abi_gki_protected_exports_*
@@ -1379,10 +1382,10 @@ jobs:
               echo "echo \"\${kmi:-${XEC_KMI-}}\${lv}-g\${gh}-${XEC_BID}\""
             } > "$KROOT/scripts/setlocalversion"
             chmod +x "$KROOT/scripts/setlocalversion"
-            if [ "$KROOT" = "." ]; then
+            if [ ! -f "build/build.sh" ]; then
               # kleaf：清掉 defconfig 的 CONFIG_LOCALVERSION（6.x 的 KMI 由 stub 提供，
               # 保留会双重拼接）；5.x 树保留原值无害（stub 已用 constants 表接管 KMI）。
-              sed -i '/^CONFIG_LOCALVERSION=/d' ./arch/arm64/configs/gki_defconfig 2>/dev/null || true
+              sed -i '/^CONFIG_LOCALVERSION=/d' ./common/arch/arm64/configs/gki_defconfig 2>/dev/null || true
               # kleaf 的 stamp 把构建身份写死为 kleaf@build-host，偏离原厂
               # build-user@build-host。定向改回（找不到模式就跳过，不阻塞构建）。
               sed -i 's/\(KBUILD_BUILD_USER[", =:]*\)"kleaf"/\1"build-user"/g; s/\(KBUILD_BUILD_USER[", =:]*\)kleaf/\1build-user/g' \
