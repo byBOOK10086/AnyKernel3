@@ -1351,8 +1351,8 @@ jobs:
             {
               echo '#!/bin/sh'
               echo '# XECKernelPro: deterministic GKI-style scmversion.'
-              echo '# KMI segment: kleaf branches get it baked below; build.sh branches'
-              echo '# get it from the tree localversion* files (file_localversion).'
+              echo '# KMI segment comes from the tree build.config.constants'
+              echo '# (BRANCH + KMI_GENERATION), with the workflow table as fallback.'
               echo 'root="$(cd "$(dirname "$0")/.." && pwd)"'
               echo "gh=\"\$(git -C \"\$root\" rev-parse --short=12 HEAD 2>/dev/null || echo ${XEC_GHASH})\""
               echo 'lv=""'
@@ -1361,13 +1361,22 @@ jobs:
               echo '  case "$f" in *.cmd) continue ;; esac'
               echo '  lv="$lv$(tr -d "\r\n" < "$f")"'
               echo 'done'
-              echo "echo \"${XEC_KMI}\${lv}-g\${gh}-${XEC_BID}\""
+              echo 'kmi=""'
+              echo 'for c in "$root/build.config.constants" "$root/common/build.config.constants"; do'
+              echo '  if [ -f "$c" ]; then'
+              echo '    . "$c" 2>/dev/null || true'
+              echo '    if [ -n "${BRANCH:-}" ] && [ -n "${KMI_GENERATION:-}" ]; then'
+              echo '      kmi="-${BRANCH%%-*}-${KMI_GENERATION}"'
+              echo '    fi'
+              echo '    break'
+              echo '  fi'
+              echo 'done'
+              echo "echo \"\${kmi:-${XEC_KMI-}}\${lv}-g\${gh}-${XEC_BID}\""
             } > "$KROOT/scripts/setlocalversion"
             chmod +x "$KROOT/scripts/setlocalversion"
-            # KMI 段的真实来源（a12-168 探针实测）：gki_defconfig 的 CONFIG_LOCALVERSION
-            # （build.sh 树）。只有 kleaf 树才清掉它 —— 6.x 的 KMI 由上面的 case 表进 stub，
-            # 保留会双重拼接。5.x 必须保留 defconfig 原值。
             if [ "$KROOT" = "." ]; then
+              # kleaf：清掉 defconfig 的 CONFIG_LOCALVERSION（6.x 的 KMI 由 stub 提供，
+              # 保留会双重拼接）；5.x 树保留原值无害（stub 已用 constants 表接管 KMI）。
               sed -i '/^CONFIG_LOCALVERSION=/d' ./arch/arm64/configs/gki_defconfig 2>/dev/null || true
               # kleaf 的 stamp 把构建身份写死为 kleaf@build-host，偏离原厂
               # build-user@build-host。定向改回（找不到模式就跳过，不阻塞构建）。
