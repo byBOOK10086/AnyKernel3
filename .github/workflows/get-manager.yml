@@ -261,6 +261,9 @@ jobs:
 
       - name: 添加 SUSFS 模块
         id: add_SUSFS
+        # XECKernelPro 不转发 sidex15/susfs4ksu-module（AGPL-3.0，不分发裁决）：
+        # 内核侧 SUSFS 已编进内核，用户态供给由 xudc 原生完成，无需该模块。
+        if: inputs.kernelsu_variant != 'XECKernelPro'
         continue-on-error: true
         run: |
           BUILD_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
