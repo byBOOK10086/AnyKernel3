@@ -1335,30 +1335,43 @@ jobs:
             # ===== 原厂身份对齐（2026-10-26 春秋检测 Tampered kernel 根因修复）=====
             # 真机取证 rembrandt 原厂串：5.10.168-android12-9-00002-gf3c080171fd5-ab10346004
             #   (build-user@build-host) ... #1 SMP PREEMPT Mon Jun 19 09:18:11 UTC 2023
-            # Tampered 触发点 = 版本串缺 -ab<BID> 尾（真 GKI 全都有）+ 构建时间非 GKI 年代
-            #（后者在"设置自定义构建时间"步修）。KMI 段（android12-9 等）由内核树自带
-            # Makefile/defconfig 提供，与 setlocalversion 无关——旧 perl/sed 改写静默失败、
-            # 产物实测仍输出裸 -g<hash>，故这里整文件 stub 确定性输出。
+            # 首轮 a15 产物实测：6.6.50-android15-8-g<hash>-ab…-4k (kleaf@build-host)
+            # Tampered 触发点 = 缺 -ab<BID> 尾 + 实时构建时间；kleaf 身份 kleaf@build-host
+            # 也偏离原厂。KMI 段来源实测：build.sh 树在 localversion* 文件里，
+            # kleaf 树靠工作流 case 表（首轮产物即如此）。
             case "${{ inputs.android_version }}-${{ inputs.kernel_version }}" in
-              "android12-5.10") XEC_BID="ab10346004" ;;
-              "android13-5.15") XEC_BID="ab10475596" ;;
-              "android14-6.1")  XEC_BID="ab11570021" ;;
-              "android15-6.6")  XEC_BID="ab12653098" ;;
-              "android16-6.12") XEC_BID="ab13924671" ;;
-              *) XEC_BID="ab10346004" ;;
+              "android12-5.10") XEC_BID="ab10346004"; XEC_KMI="" ;;
+              "android13-5.15") XEC_BID="ab10475596"; XEC_KMI="" ;;
+              "android14-6.1")  XEC_BID="ab11570021"; XEC_KMI="-android14-11" ;;
+              "android15-6.6")  XEC_BID="ab12653098"; XEC_KMI="-android15-8" ;;
+              "android16-6.12") XEC_BID="ab13924671"; XEC_KMI="-android16-5" ;;
+              *) XEC_BID="ab10346004"; XEC_KMI="" ;;
             esac
             XEC_GHASH="$(git -C "$KROOT" rev-parse --short=12 HEAD 2>/dev/null || echo 000000000000)"
             {
               echo '#!/bin/sh'
               echo '# XECKernelPro: deterministic GKI-style scmversion.'
-              echo '# The KMI segment (e.g. android12-9) comes from the tree Makefile layer.'
+              echo '# KMI segment: kleaf branches get it baked below; build.sh branches'
+              echo '# get it from the tree localversion* files (file_localversion).'
               echo 'root="$(cd "$(dirname "$0")/.." && pwd)"'
               echo "gh=\"\$(git -C \"\$root\" rev-parse --short=12 HEAD 2>/dev/null || echo ${XEC_GHASH})\""
-              echo "echo \"-g\${gh}-${XEC_BID}\""
+              echo 'lv=""'
+              echo 'for f in "$root"/localversion*; do'
+              echo '  [ -f "$f" ] || continue'
+              echo '  case "$f" in *.cmd) continue ;; esac'
+              echo '  lv="$lv$(tr -d "\r\n" < "$f")"'
+              echo 'done'
+              echo "echo \"${XEC_KMI}\${lv}-g\${gh}-${XEC_BID}\""
             } > "$KROOT/scripts/setlocalversion"
             chmod +x "$KROOT/scripts/setlocalversion"
             # CONFIG_LOCALVERSION 若有值会追加在 stub 输出之前，必须清空防串格式
             sed -i '/^CONFIG_LOCALVERSION=/d' "$KROOT/arch/arm64/configs/gki_defconfig" 2>/dev/null || true
+            if [ "$KROOT" = "." ]; then
+              # kleaf 的 stamp 把构建身份写死为 kleaf@build-host，偏离原厂
+              # build-user@build-host。定向改回（找不到模式就跳过，不阻塞构建）。
+              sed -i 's/\(KBUILD_BUILD_USER[", =:]*\)"kleaf"/\1"build-user"/g; s/\(KBUILD_BUILD_USER[", =:]*\)kleaf/\1build-user/g' \
+                ./build/kernel/kleaf/impl/stamp.bzl 2>/dev/null || true
+            fi
           fi
 
       - name: 设置自定义构建时间
@@ -1410,8 +1423,11 @@ jobs:
           echo "使用构建时间: $DATESTR"
           echo "KBUILD_BUILD_TIMESTAMP=$DATESTR" >> "$GITHUB_ENV"
           echo "KBUILD_BUILD_VERSION=1" >> "$GITHUB_ENV"
-          # 构建身份不设 KBUILD_BUILD_USER/HOST：AOSP build.sh 默认 --build_user build-user
-          # --build_host build-host，与 Google GKI / 小米原厂串完全一致，必须保留。
+          # 构建身份=build-user@build-host（Google GKI / 小米原厂串实测一致）。
+          # build.sh 默认就是这个值；kleaf 路径由 stamp.bzl 定向 sed 兜底（见上一步），
+          # 这里再 export 一层 env 以防 stamp 未覆盖的路径。
+          echo "KBUILD_BUILD_USER=build-user" >> "$GITHUB_ENV"
+          echo "KBUILD_BUILD_HOST=build-host" >> "$GITHUB_ENV"
 
           # 统一处理 mkcompile_h 补丁
           f="$KERNEL_ROOT/common/scripts/mkcompile_h"
