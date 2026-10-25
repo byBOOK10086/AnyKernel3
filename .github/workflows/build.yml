@@ -1364,9 +1364,11 @@ jobs:
               echo "echo \"${XEC_KMI}\${lv}-g\${gh}-${XEC_BID}\""
             } > "$KROOT/scripts/setlocalversion"
             chmod +x "$KROOT/scripts/setlocalversion"
-            # CONFIG_LOCALVERSION 若有值会追加在 stub 输出之前，必须清空防串格式
-            sed -i '/^CONFIG_LOCALVERSION=/d' "$KROOT/arch/arm64/configs/gki_defconfig" 2>/dev/null || true
+            # KMI 段的真实来源（a12-168 探针实测）：gki_defconfig 的 CONFIG_LOCALVERSION
+            # （build.sh 树）。只有 kleaf 树才清掉它 —— 6.x 的 KMI 由上面的 case 表进 stub，
+            # 保留会双重拼接。5.x 必须保留 defconfig 原值。
             if [ "$KROOT" = "." ]; then
+              sed -i '/^CONFIG_LOCALVERSION=/d' ./arch/arm64/configs/gki_defconfig 2>/dev/null || true
               # kleaf 的 stamp 把构建身份写死为 kleaf@build-host，偏离原厂
               # build-user@build-host。定向改回（找不到模式就跳过，不阻塞构建）。
               sed -i 's/\(KBUILD_BUILD_USER[", =:]*\)"kleaf"/\1"build-user"/g; s/\(KBUILD_BUILD_USER[", =:]*\)kleaf/\1build-user/g' \
