@@ -986,6 +986,25 @@ jobs:
 
           ensure_line_once "$XIAOMI_SYMBOL_LIST" "device_find_any_child"
 
+      - name: 修复小米符号导出（5.10-6.12）
+        if: inputs.kernel_version == '5.10' || inputs.kernel_version == '5.15' || inputs.kernel_version == '6.1' || inputs.kernel_version == '6.12'
+        working-directory: ${{ env.KERNEL_ROOT }}/common
+        run: |
+          # 与 6.6 的「三星 + 小米」步骤同机制：小米 vendor 模块依赖
+          # device_find_any_child；不在 KMI 符号表里就不导出，vendor 模块
+          # 加载失败可能导致小米设备不开机。树里没有该符号表文件就跳过。
+          XIAOMI_SYMBOL_LIST="android/abi_gki_aarch64_xiaomi"
+          if [ -f "$XIAOMI_SYMBOL_LIST" ]; then
+            if ! grep -qF "device_find_any_child" "$XIAOMI_SYMBOL_LIST"; then
+              echo "device_find_any_child" >> "$XIAOMI_SYMBOL_LIST"
+              echo "已为小米追加 device_find_any_child 符号导出"
+            else
+              echo "device_find_any_child 已在小米符号表中"
+            fi
+          else
+            echo "::notice::${{ inputs.kernel_version }} 树无 android/abi_gki_aarch64_xiaomi，跳过小米符号追加"
+          fi
+
       - name: 配置 ZRAM 选项
         if: inputs.use_zram && env.ZRAM_SKIPPED != 'true'
         run: |
