@@ -268,6 +268,34 @@ jobs:
             git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "$SUSFS_BRANCH"
           fi
 
+          # XECKernelPro：susfs4ksu 必须钉死在与 XECKernelPro 树同一张固定表上
+          #（来源：XECKernelPro 仓库 build-susfs-gki.yml，2026-10-12 用 GitLab API
+          # 解析的各分支尖端）。上游 2026-10-24 起的 50_ 补丁切到了新集成 API
+          #（引用 my_setprocattr / ksu_setup_preinit_file / ksu_preinit_handle_post_
+          # execveat 等符号），XECKernelPro 树没有这些符号；而且 SUSFS 的内核 ABI
+          #（结构体布局、CMD 集合）与用户态 xudc 一一对应，跟着分支头跑 = 静默错配。
+          if [ "${{ inputs.ksu_variant }}" == "XECKernelPro" ]; then
+            case "$SUSFS_BRANCH" in
+              gki-android12-5.10) XEC_SUSFS_SHA=13e7da018ddd41341b9d6ab1b279f4e712789d9e ;;
+              gki-android13-5.10) XEC_SUSFS_SHA=2837d10b68bacbd7f06758d301237e8f8b363adb ;;
+              gki-android13-5.15) XEC_SUSFS_SHA=138a6641afd25fb04f803361232c44ef2e033e61 ;;
+              gki-android14-5.15) XEC_SUSFS_SHA=1f88baa37858183a45c62ad5aea315f27b3a8fc1 ;;
+              gki-android14-6.1)  XEC_SUSFS_SHA=17dc6b683b26e036242bfcfe86b33c5982590237 ;;
+              gki-android15-6.6)  XEC_SUSFS_SHA=a0f9c59e2243f8a5db955f4ad1686d5e0ad26e1a ;;
+              gki-android16-6.12) XEC_SUSFS_SHA=b213c54126fb243595ce7876e91d84d6e0861fec ;;
+              *) XEC_SUSFS_SHA="" ;;
+            esac
+            if [ -n "$XEC_SUSFS_SHA" ]; then
+              echo "XECKernelPro: 固定 susfs4ksu -> $XEC_SUSFS_SHA（与 XECKernelPro GKI 构建的 ABI 固定表一致）"
+              git -C susfs4ksu checkout "$XEC_SUSFS_SHA" 2>/dev/null || {
+                git -C susfs4ksu fetch --depth=200 origin "$XEC_SUSFS_SHA" >/dev/null 2>&1 || true
+                git -C susfs4ksu checkout "$XEC_SUSFS_SHA"
+              }
+              SUSFS_LATEST_COMMIT_DATE=$(git -C susfs4ksu log -1 --date=format:'%Y-%m-%d %H:%M:%S %z' --format='%cd')
+              echo "实际使用 SUSFS 提交日期: $SUSFS_LATEST_COMMIT_DATE"
+            fi
+          fi
+
           CONFIG_FILE="config/config"
           if [ -f "$CONFIG_FILE" ]; then
             CUSTOM_ENABLED=$(grep "^custom=" "$CONFIG_FILE" | cut -d'=' -f2)
