@@ -1345,7 +1345,13 @@ jobs:
               sed -i "\$s|echo \"\$res\"|echo \"${KMI_LOCAL}\"|" ./scripts/setlocalversion 2>/dev/null || true
               sed -i "/^CONFIG_LOCALVERSION=/ s/=\"[^\"]*\"/=\"${KMI_LOCAL}\"/" ./arch/arm64/configs/gki_defconfig 2>/dev/null || true
             else
-              SUFFIX="-${KMI_TAG}-g${GHASH}-${BID}"
+              if [ "${{ inputs.ksu_variant }}" == "XECKernelPro" ]; then
+                # 伪装原版（2026-10-26）：Google GKI 的 release 就是 6.6.XX-android15-8，
+                # 带 -g<hash>-ab<bid> 尾巴会被验机软件直接判成内核被替换（Tampered kernel）。
+                SUFFIX="-${KMI_TAG}"
+              else
+                SUFFIX="-${KMI_TAG}-g${GHASH}-${BID}"
+              fi
               perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${SUFFIX}"'\$\{config_localversion\}"/s' ./scripts/setlocalversion 2>/dev/null || true
             fi
           fi
@@ -1390,6 +1396,9 @@ jobs:
           echo "使用构建时间: $DATESTR"
           echo "KBUILD_BUILD_TIMESTAMP=$DATESTR" >> "$GITHUB_ENV"
           echo "KBUILD_BUILD_VERSION=1" >> "$GITHUB_ENV"
+          # 构建身份对齐 Google GKI 的 (build@build)，消掉 /proc/version 的第二处烙印。
+          echo "KBUILD_BUILD_USER=build" >> "$GITHUB_ENV"
+          echo "KBUILD_BUILD_HOST=build" >> "$GITHUB_ENV"
 
           # 统一处理 mkcompile_h 补丁
           f="$KERNEL_ROOT/common/scripts/mkcompile_h"
