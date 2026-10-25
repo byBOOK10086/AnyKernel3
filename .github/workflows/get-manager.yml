@@ -50,7 +50,7 @@ jobs:
             git clone https://github.com/ReSukiSU/ReSukiSU.git KernelSU
           elif [ "${{ inputs.kernelsu_variant }}" == "XECKernelPro" ]; then
             echo "This is the XECKernelPro variant"
-            git clone https://github.com/byBOOK10086/XECKernelPro.git KernelSU
+            git clone -b fresh-main https://github.com/byBOOK10086/XECKernelPro.git KernelSU
           else
             echo "Unknown variant"
             exit 1
