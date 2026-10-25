@@ -1314,9 +1314,11 @@ jobs:
       - name: 配置内核名称
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |
+          # 内核树根：传统 build.sh 树的内核源码在 common/，kleaf 树在当前目录
           if [ -f "build/build.sh" ]; then
-            sed -i 's/-dirty//' ./common/scripts/setlocalversion
+            KROOT="./common"
           else
+            KROOT="."
             sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' ./common/BUILD.bazel
             sed -i '/kmi_symbol_list_strict_mode/d' ./common/BUILD.bazel
             rm -rf ./common/android/abi_gki_protected_exports_*
@@ -1329,31 +1331,34 @@ jobs:
             perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${CLEAN_VERSION}"'"/s' ./common/scripts/setlocalversion 2>/dev/null || true
             sed -i "\$s|echo \"\$res\"|echo \"${CLEAN_VERSION}\"|" ./common/scripts/setlocalversion 2>/dev/null || true
             sed -i '/^CONFIG_LOCALVERSION=/ s/="\([^"]*\)"/="'"$CLEAN_VERSION"'"/' ./common/arch/arm64/configs/gki_defconfig
-          elif [ ! -f "build/build.sh" ]; then
-            cd ./common
-            BID="ab$((RANDOM % 90000000 + 10000000))"
-            GHASH=$(git rev-parse --verify HEAD | cut -c1-13)
+          else
+            # ===== 原厂身份对齐（2026-10-26 春秋检测 Tampered kernel 根因修复）=====
+            # 真机取证 rembrandt 原厂串：5.10.168-android12-9-00002-gf3c080171fd5-ab10346004
+            #   (build-user@build-host) ... #1 SMP PREEMPT Mon Jun 19 09:18:11 UTC 2023
+            # Tampered 触发点 = 版本串缺 -ab<BID> 尾（真 GKI 全都有）+ 构建时间非 GKI 年代
+            #（后者在"设置自定义构建时间"步修）。KMI 段（android12-9 等）由内核树自带
+            # Makefile/defconfig 提供，与 setlocalversion 无关——旧 perl/sed 改写静默失败、
+            # 产物实测仍输出裸 -g<hash>，故这里整文件 stub 确定性输出。
             case "${{ inputs.android_version }}-${{ inputs.kernel_version }}" in
-              "android14-6.1")  KMI_TAG="android14-11" ;;
-              "android15-6.6")  KMI_TAG="android15-8" ;;
-              "android16-6.12") KMI_TAG="android16-5" ;;
-              *) KMI_TAG="${{ inputs.android_version }}" ;;
+              "android12-5.10") XEC_BID="ab10346004" ;;
+              "android13-5.15") XEC_BID="ab10475596" ;;
+              "android14-6.1")  XEC_BID="ab11570021" ;;
+              "android15-6.6")  XEC_BID="ab12653098" ;;
+              "android16-6.12") XEC_BID="ab13924671" ;;
+              *) XEC_BID="ab10346004" ;;
             esac
-
-            if [ "${{ inputs.kernel_version }}" = "6.1" ]; then
-              KMI_LOCAL="-${KMI_TAG}-g${GHASH}-${BID}-4k"
-              sed -i "\$s|echo \"\$res\"|echo \"${KMI_LOCAL}\"|" ./scripts/setlocalversion 2>/dev/null || true
-              sed -i "/^CONFIG_LOCALVERSION=/ s/=\"[^\"]*\"/=\"${KMI_LOCAL}\"/" ./arch/arm64/configs/gki_defconfig 2>/dev/null || true
-            else
-              if [ "${{ inputs.ksu_variant }}" == "XECKernelPro" ]; then
-                # 伪装原版（2026-10-26）：Google GKI 的 release 就是 6.6.XX-android15-8，
-                # 带 -g<hash>-ab<bid> 尾巴会被验机软件直接判成内核被替换（Tampered kernel）。
-                SUFFIX="-${KMI_TAG}"
-              else
-                SUFFIX="-${KMI_TAG}-g${GHASH}-${BID}"
-              fi
-              perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\$\{KERNELVERSION\}'"${SUFFIX}"'\$\{config_localversion\}"/s' ./scripts/setlocalversion 2>/dev/null || true
-            fi
+            XEC_GHASH="$(git -C "$KROOT" rev-parse --short=12 HEAD 2>/dev/null || echo 000000000000)"
+            {
+              echo '#!/bin/sh'
+              echo '# XECKernelPro: deterministic GKI-style scmversion.'
+              echo '# The KMI segment (e.g. android12-9) comes from the tree Makefile layer.'
+              echo 'root="$(cd "$(dirname "$0")/.." && pwd)"'
+              echo "gh=\"\$(git -C \"\$root\" rev-parse --short=12 HEAD 2>/dev/null || echo ${XEC_GHASH})\""
+              echo "echo \"-g\${gh}-${XEC_BID}\""
+            } > "$KROOT/scripts/setlocalversion"
+            chmod +x "$KROOT/scripts/setlocalversion"
+            # CONFIG_LOCALVERSION 若有值会追加在 stub 输出之前，必须清空防串格式
+            sed -i '/^CONFIG_LOCALVERSION=/d' "$KROOT/arch/arm64/configs/gki_defconfig" 2>/dev/null || true
           fi
 
       - name: 设置自定义构建时间
@@ -1390,15 +1395,23 @@ jobs:
 
             DATESTR="$NORMALIZED_TIME"
           else
-            DATESTR="$(TZ='CST-8' date +'%a %b %d %T UTC %Y')"
+            # 各 KMI 烙 GKI 年代真实构建时间（原厂串取证；2026 实时时间会直接判 Tampered）。
+            # a12 取 rembrandt 原厂串实测值；其余取该 KMI 官方发布年代内的真实工作日时间。
+            case "${{ inputs.android_version }}-${{ inputs.kernel_version }}" in
+              "android12-5.10") DATESTR="Mon Jun 19 09:18:11 UTC 2023" ;;
+              "android13-5.15") DATESTR="Thu Sep 14 06:31:02 UTC 2023" ;;
+              "android14-6.1")  DATESTR="Wed Feb 14 08:12:47 UTC 2024" ;;
+              "android15-6.6")  DATESTR="Tue Nov 19 10:05:33 UTC 2024" ;;
+              "android16-6.12") DATESTR="Mon Aug 25 09:40:12 UTC 2025" ;;
+              *) DATESTR="$(date -u +'%a %b %d %T UTC %Y')" ;;
+            esac
           fi
 
           echo "使用构建时间: $DATESTR"
           echo "KBUILD_BUILD_TIMESTAMP=$DATESTR" >> "$GITHUB_ENV"
           echo "KBUILD_BUILD_VERSION=1" >> "$GITHUB_ENV"
-          # 构建身份对齐 Google GKI 的 (build@build)，消掉 /proc/version 的第二处烙印。
-          echo "KBUILD_BUILD_USER=build" >> "$GITHUB_ENV"
-          echo "KBUILD_BUILD_HOST=build" >> "$GITHUB_ENV"
+          # 构建身份不设 KBUILD_BUILD_USER/HOST：AOSP build.sh 默认 --build_user build-user
+          # --build_host build-host，与 Google GKI / 小米原厂串完全一致，必须保留。
 
           # 统一处理 mkcompile_h 补丁
           f="$KERNEL_ROOT/common/scripts/mkcompile_h"
