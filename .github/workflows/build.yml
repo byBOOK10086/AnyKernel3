@@ -1339,9 +1339,14 @@ jobs:
             # Tampered 触发点 = 缺 -ab<BID> 尾 + 实时构建时间；kleaf 身份 kleaf@build-host
             # 也偏离原厂。KMI 段来源实测：build.sh 树在 localversion* 文件里，
             # kleaf 树靠工作流 case 表（首轮产物即如此）。
+            # KMI 段实测：build.config.constants 在 5.x repo-sync 树里不存在
+            #（a12-168 三轮探针），build.config.constants 兜底只对部分 6.x 有效 ——
+            # 干脆全部烘焙真实值：a12=android12-9（rembrandt 原厂串实证）、
+            # a13=android13-8（本仓 kernel_profiles 实证文件名），
+            # a14/a15/a16 沿用首轮产物实证的 android14-11 / android15-8 / android16-5。
             case "${{ inputs.android_version }}-${{ inputs.kernel_version }}" in
-              "android12-5.10") XEC_BID="ab10346004"; XEC_KMI="" ;;
-              "android13-5.15") XEC_BID="ab10475596"; XEC_KMI="" ;;
+              "android12-5.10") XEC_BID="ab10346004"; XEC_KMI="-android12-9" ;;
+              "android13-5.15") XEC_BID="ab10475596"; XEC_KMI="-android13-8" ;;
               "android14-6.1")  XEC_BID="ab11570021"; XEC_KMI="-android14-11" ;;
               "android15-6.6")  XEC_BID="ab12653098"; XEC_KMI="-android15-8" ;;
               "android16-6.12") XEC_BID="ab13924671"; XEC_KMI="-android16-5" ;;
