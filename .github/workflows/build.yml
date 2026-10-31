@@ -1246,6 +1246,14 @@ jobs:
             if [[ "${{ inputs.use_kpm }}" == enabled* ]] || [[ "${{ inputs.use_kpm }}" == patched* ]]; then
               if grep -RqsE '^[[:space:]]*config[[:space:]]+KPM([[:space:]]|$)' common KernelSU 2>/dev/null; then
                 echo "CONFIG_KPM=y" >> "$DEFCONFIG"
+                # XEC 双 KPM 引擎（KernelPatch 全量引擎 + SukiSU GKI 桥接）：
+                # 内核树声明了才写，老树静默跳过（与 KPM 同款守卫）。
+                if grep -RqsE '^[[:space:]]*config[[:space:]]+KSU_KPM_AP([[:space:]]|$)' common KernelSU 2>/dev/null; then
+                  echo "CONFIG_KSU_KPM_AP=y" >> "$DEFCONFIG"
+                  echo "CONFIG_KSU_KPM_SUKI=y" >> "$DEFCONFIG"
+                else
+                  echo "::warning title=KPM 引擎已跳过::当前内核树未声明 CONFIG_KSU_KPM_AP，仅启用 legacy KPM 装载器"
+                fi
               elif [ "$SKIP_INCOMPATIBLE" = "true" ]; then
                 echo "::warning title=KPM 已跳过::当前 KernelSU 代码未声明 CONFIG_KPM，已跳过 KPM 功能"
                 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -1520,7 +1528,7 @@ jobs:
                 if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                   LTO_FLAG="--lto=none"
                 fi
-                tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast $LTO_FLAG $FRAG_FLAG --verbose_failures //common:kernel_aarch64 || exit 1
+                tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast $LTO_FLAG $FRAG_FLAG //common:kernel_aarch64_dist || exit 1
                 strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version'
               fi
 
